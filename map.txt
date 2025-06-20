@@ -1,0 +1,70 @@
+malaika-iuran/
+│
+├── public/
+│   └── index.html
+│
+├── server/
+│   ├── routes/                 
+│   │   ├── midTrans.js             
+│   ├── utils/                 
+│   │   ├── LogActivity.js             
+│   │   ├── renderInvoicePdf.js             
+│   ├── .env                 
+│   └── index.js
+│   └── package-lock.json
+│   └── package.json
+│
+├── src/
+│   ├── assets/                
+│   ├── components/            
+│   ├── context/               
+│   │   ├── UserContext.jsx              
+│   ├── hooks/                 
+│   │   ├── useAdminId.jsx              
+│   ├── layouts/
+│   │   └── AdminLayout.jsx    
+│   │   └── WargaLayout.jsx    
+│   ├── lib/
+│   │   └── SupabaseClient.jsx          
+│   ├── pages/
+│   │   ├── auth/              
+│   │   │   ├── Login.jsx              
+│   │   ├── public/            
+│   │   │   ├── InvoicePublic.jsx
+│   │   │   ├── Invoice.jsx
+│   │   │   ├── ProfilWarga.jsx
+│   │   │   ├── RiwayatPembayaran.jsx
+│   │   │   ├── TagihanSaya.jsx
+│   │   └── dashboard/
+│   │   │   ├── iuran/
+│   │   │   │   ├── IuranList.jsx
+│   │   │   │   ├── IuranModal.jsx
+│   │   │   │   ├── IuranTambahanList.jsx
+│   │   │   │   ├── TambahanModal.jsx
+│   │   │   ├── pengguna/
+│   │   │   │   ├── RiwayatModal.jsx
+│   │   │   │   ├── WargaList.jsx
+│   │   │   │   ├── WargaModal.jsx
+│   │   │   ├── DashboardCard.js
+│   │   │   ├── index.jsx
+│   │   │   ├── RiwayatPembayaranTabel.jsx
+│   ├── features/             
+│   ├── routes/                
+│   │   ├── ProtectedRoute.jsx              
+│   ├── styles/                
+│   │   ├── tailwind.css              
+│   ├── types/                 
+│   ├── App.jsx
+│   └── main.jsx
+│
+├── supabase/
+│   ├── .temp  
+│   ├── config.toml  
+│   ├── functions  
+│   │   │   ├── generate_iuran_tagihan/
+│   │   │   │    ├── index.ts
+│
+├── .env
+├── tailwind.config.js
+├── vite.config.js
+└── package.json

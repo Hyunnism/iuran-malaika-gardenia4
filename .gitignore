@@ -1,0 +1,33 @@
+# Node
+node_modules/
+dist/
+build/
+
+# Vite cache
+.vite/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Local env files
+.env
+server/.env
+
+# Supabase artifacts
+supabase/.temp/
+supabase/functions/**/dist/
+supabase/migrations/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE/editor
+.vscode/
+.idea/
+
+# Puppeteer/Invoice Output (optional jika generate lokal)
+*.pdf
