@@ -1,12 +1,56 @@
-# React + Vite
+# 💰 Malaika Iuran – Sistem Manajemen Iuran RT
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Malaika Iuran adalah aplikasi web yang dirancang untuk memudahkan pengelolaan iuran rutin dan tambahan di lingkungan RT/RW. Aplikasi ini memungkinkan admin mencatat, memantau, dan mencetak invoice iuran warga, serta warga dapat melihat dan membayar tagihan secara online.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🚀 Tech Stack
 
-## Expanding the ESLint configuration
+- **Frontend**: React + Vite + TailwindCSS
+- **Backend**: Node.js + Express
+- **Database & Auth**: Supabase (PostgreSQL)
+- **Payments**: Midtrans Snap API
+- **PDF Rendering**: Puppeteer
+- **Storage**: Supabase Storage
+- **Scheduler**: Supabase Edge Functions + Cron
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+---
+
+## 📁 Struktur Direktori
+
+```bash
+malaika-iuran/
+│
+├── public/                     # HTML publik
+│
+├── server/                    # Backend Express
+│   ├── routes/
+│   │   └── midTrans.js        # Webhook & Snap integration
+│   ├── utils/
+│   │   ├── LogActivity.js     # Audit Trail helper
+│   │   └── renderInvoicePdf.js # Generate & upload PDF to Supabase
+│   └── index.js               # Main server entry
+│
+├── src/                       # Frontend React
+│   ├── assets/                # Logo, icons, dsb
+│   ├── components/            # Komponen UI
+│   ├── context/               # UserContext (role & auth)
+│   ├── hooks/                 # Custom hooks (e.g., useAdminId)
+│   ├── layouts/               # Layout admin dan warga
+│   ├── lib/                   # Supabase client init
+│   ├── pages/
+│   │   ├── auth/              # Login page
+│   │   ├── public/            # Halaman warga (invoice, profil, dsb)
+│   │   └── dashboard/         # Halaman admin
+│   ├── routes/                # ProtectedRoute (role-based access)
+│   ├── styles/                # Tailwind config
+│   └── App.jsx, main.jsx      # Entry point
+│
+├── supabase/                  # Supabase CLI project
+│   ├── config.toml
+│   └── functions/
+│       └── generate_iuran_tagihan/ # Cron function (tiap bulan)
+│
+├── .env                       # Env global
+├── tailwind.config.js
+└── vite.config.js
