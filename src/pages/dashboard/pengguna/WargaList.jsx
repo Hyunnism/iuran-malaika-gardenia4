@@ -3,11 +3,12 @@ import { supabase } from '@/lib/supabaseClient'
 import useAdminId from '../../../hooks/useAdminId'
 import RiwayatModal from './RiwayatModal'
 import WargaModal from './WargaModal'
+import { API_BASE_URL } from '@/lib/apibaseUrl'
 
 export default function WargaList() {
     const [warga, setWarga] = useState([])
     const [selectedWarga, setSelectedWarga] = useState(null)
-    const [showModal, setShowModal] = useState(null) // null | 'form' | 'riwayat'
+    const [showModal, setShowModal] = useState(null)
     const adminId = useAdminId()
 
     const fetchWarga = async () => {
@@ -16,28 +17,19 @@ export default function WargaList() {
             .select('id, name, nomor_rumah, nomor_hp')
             .eq('role', 'warga')
 
-        if (usersError) {
-            console.error('❌ Gagal mengambil users:', usersError.message)
-            return
-        }
+        if (usersError) return console.error('❌ Gagal mengambil users:', usersError.message)
 
         const { data: tagihanRutin, error: rutinError } = await supabase
             .from('iuran_tagihan')
             .select('user_id, status, iuran_rutin(nominal)')
 
-        if (rutinError) {
-            console.error('❌ Gagal mengambil tagihan rutin:', rutinError.message)
-            return
-        }
+        if (rutinError) return console.error('❌ Gagal mengambil tagihan rutin:', rutinError.message)
 
         const { data: tagihanTambahan, error: tambahanError } = await supabase
             .from('tagihan_tambahan')
             .select('user_id, status_bayar, iuran_tambahan(nominal)')
 
-        if (tambahanError) {
-            console.error('❌ Gagal mengambil tagihan tambahan:', tambahanError.message)
-            return
-        }
+        if (tambahanError) return console.error('❌ Gagal mengambil tagihan tambahan:', tambahanError.message)
 
         const wargaWithStatus = users.map(user => {
             const rutin = tagihanRutin.filter(t => t.user_id === user.id)
@@ -83,7 +75,7 @@ export default function WargaList() {
         if (!confirm || !adminId) return
 
         try {
-            const res = await fetch(`http://localhost:5000/api/delete-warga/${userId}?admin_id=${adminId}`, {
+            const res = await fetch(`${API_BASE_URL}/api/delete-warga/${userId}?admin_id=${adminId}`, {
                 method: 'DELETE'
             })
 
@@ -123,7 +115,6 @@ export default function WargaList() {
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {warga.map(w => (
                     <div key={w.id} className="bg-white rounded-2xl shadow-md border p-5 space-y-4">
-                        {/* Identitas */}
                         <div className="space-y-1">
                             <h2 className="text-xl font-bold text-gray-800 text-center">{w.name}</h2>
                             <div className="flex justify-between text-sm text-gray-600 border-b py-1.5">
@@ -136,7 +127,6 @@ export default function WargaList() {
                             </div>
                         </div>
 
-                        {/* Iuran */}
                         <div className="rounded-md overflow-hidden border text-sm divide-y">
                             <div className="bg-gray-50 px-3 py-2 font-semibold text-gray-700">🔁 Iuran Rutin</div>
                             <div className="flex justify-between px-3 py-2">
@@ -163,13 +153,11 @@ export default function WargaList() {
                             </div>
                         </div>
 
-                        {/* Total Utang */}
                         <div className="pt-1 flex justify-between items-center text-sm font-semibold text-red-600 border-t mt-2 pt-3">
                             <span>💰 Total Utang</span>
                             <span>Rp {w.tagihan.total_utang.toLocaleString()}</span>
                         </div>
 
-                        {/* Aksi */}
                         <div className="flex justify-end gap-2 pt-3">
                             <button
                                 onClick={() => {
@@ -199,9 +187,6 @@ export default function WargaList() {
                     </div>
                 ))}
             </div>
-
-
-
 
             {showModal === 'form' && (
                 <WargaModal

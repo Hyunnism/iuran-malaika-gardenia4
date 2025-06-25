@@ -4,6 +4,7 @@ import dotenv from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
 import { logActivity } from './utils/logActivity.js'
 
+
 dotenv.config()
 
 const app = express()

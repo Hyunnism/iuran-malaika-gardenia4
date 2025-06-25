@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
+import { API_BASE_URL } from '@/lib/apibaseUrl'
 
 export default function WargaModal({ initialData, onClose, onSave }) {
     const [name, setName] = useState(initialData?.name || '')
@@ -31,7 +32,7 @@ export default function WargaModal({ initialData, onClose, onSave }) {
             }
         } else {
             try {
-                const res = await fetch('http://localhost:5000/api/create-warga', {
+                const res = await fetch(`${API_BASE_URL}/api/create-warga`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)

@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/SupabaseClient'
 import { useUser } from '@/context/UserContext'
+import { API_BASE_URL } from '@/lib/apibaseUrl'
 
 export default function TagihanSaya() {
     const { user } = useUser()
@@ -52,7 +53,7 @@ export default function TagihanSaya() {
 
     const handleBayar = async (item) => {
         try {
-            const res = await fetch('/api/midtrans/create-snap', {
+            const res = await fetch(`${API_BASE_URL}/api/midtrans/create-snap`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -67,6 +68,7 @@ export default function TagihanSaya() {
             alert('Gagal membuat pembayaran. Coba lagi.')
         }
     }
+
 
     return (
         <div className="space-y-5">

@@ -11,8 +11,10 @@ const snap = new midtransClient.Snap({
     serverKey: process.env.MIDTRANS_SERVER_KEY
 })
 
+// === CREATE SNAP ===
 router.post('/create-snap', async (req, res) => {
     const { user_id, tagihan_id, jenis } = req.body
+    const supabase = req.supabase
 
     try {
         let nominal = 0
@@ -20,28 +22,46 @@ router.post('/create-snap', async (req, res) => {
         let userName = 'Warga'
 
         if (jenis === 'rutin') {
-            const { data: tagihan } = await req.supabase
-                .from('iuran_tagihan')
-                .select('*, users(name), iuran_rutin(nama_iuran, nominal)')
-                .eq('id', tagihan_id)
-                .single()
+            const { data: tagihan, error: tagihanErr } = await supabase
+                .from('iuran_tagihan').select('*').eq('id', tagihan_id).single()
 
-            if (!tagihan) return res.status(404).json({ error: 'Tagihan rutin tidak ditemukan' })
-            nominal = tagihan.iuran_rutin.nominal
-            namaIuran = tagihan.iuran_rutin.nama_iuran
-            userName = tagihan.users.name
-        } else if (jenis === 'tambahan') {
-            const { data: tagihan } = await req.supabase
-                .from('tagihan_tambahan')
-                .select('*, users(name), iuran_tambahan(nama_iuran, nominal)')
-                .eq('id', tagihan_id)
-                .single()
+            if (tagihanErr || !tagihan) {
+                return res.status(404).json({ error: 'Tagihan rutin tidak ditemukan' })
+            }
 
-            if (!tagihan) return res.status(404).json({ error: 'Tagihan tambahan tidak ditemukan' })
-            nominal = tagihan.iuran_tambahan.nominal
-            namaIuran = tagihan.iuran_tambahan.nama_iuran
-            userName = tagihan.users.name
-        } else {
+            const { data: iuran } = await supabase
+                .from('iuran_rutin').select('nama_iuran, nominal')
+                .eq('id', tagihan.iuran_rutin_id).single()
+
+            const { data: user } = await supabase
+                .from('users').select('name').eq('id', tagihan.user_id).single()
+
+            nominal = iuran?.nominal || 0
+            namaIuran = iuran?.nama_iuran || 'Iuran Rutin'
+            userName = user?.name || 'Warga'
+        }
+
+        else if (jenis === 'tambahan') {
+            const { data: tagihan, error: tagihanErr } = await supabase
+                .from('tagihan_tambahan').select('*').eq('id', tagihan_id).single()
+
+            if (tagihanErr || !tagihan) {
+                return res.status(404).json({ error: 'Tagihan tambahan tidak ditemukan' })
+            }
+
+            const { data: iuran } = await supabase
+                .from('iuran_tambahan').select('nama_iuran, nominal')
+                .eq('id', tagihan.iuran_tambahan_id).single()
+
+            const { data: user } = await supabase
+                .from('users').select('name').eq('id', tagihan.user_id).single()
+
+            nominal = iuran?.nominal || 0
+            namaIuran = iuran?.nama_iuran || 'Iuran Tambahan'
+            userName = user?.name || 'Warga'
+        }
+
+        else {
             return res.status(400).json({ error: 'Jenis tagihan tidak valid' })
         }
 
@@ -68,6 +88,7 @@ router.post('/create-snap', async (req, res) => {
 
         const transaction = await snap.createTransaction(parameter)
         return res.json({ payment_url: transaction.redirect_url })
+
     } catch (err) {
         console.error('❌ Midtrans error:', err)
         return res.status(500).json({ error: err.message })
@@ -80,73 +101,108 @@ router.post('/webhook', async (req, res) => {
     const supabase = req.supabase
 
     try {
-        if (notification.transaction_status === 'settlement') {
-            const { order_id, gross_amount, payment_type } = notification
-            const parts = order_id.split('-')
-            const jenis = parts[1]
-            const tagihan_id = parts.slice(2).join('-')
+        const { order_id } = notification
 
-            const table = jenis === 'rutin' ? 'iuran_tagihan' : 'tagihan_tambahan'
-            const statusKey = jenis === 'rutin' ? 'status' : 'status_bayar'
+        // 📦 DEBUG: log isi notifikasi
+        console.log('📦 Midtrans Webhook Payload:', JSON.stringify(notification, null, 2))
+        console.log('🧾 order_id:', order_id)
+        console.log('💳 payment_type:', notification.payment_type)
+        console.log('📌 transaction_status:', notification.transaction_status)
+        console.log('🔐 fraud_status:', notification.fraud_status)
 
-            const { data: tagihanData, error: tagihanErr } = await supabase
-                .from(table)
-                .select('user_id')
-                .eq('id', tagihan_id)
-                .single()
-
-            if (tagihanErr || !tagihanData?.user_id) {
-                console.error('❌ Tagihan tidak ditemukan:', tagihanErr?.message)
-                return res.status(400).json({ error: 'Tagihan tidak ditemukan' })
-            }
-
-            await supabase.from(table).update({
-                [statusKey]: 'sudah_bayar',
-                tanggal_bayar: new Date().toISOString(),
-                metode_bayar: payment_type,
-                order_id
-            }).eq('id', tagihan_id)
-
-            const { data: insertedLog } = await supabase
-                .from('pembayaran_log')
-                .insert({
-                    user_id: tagihanData.user_id,
-                    tagihan_id,
-                    jenis,
-                    metode: payment_type,
-                    amount: parseInt(gross_amount),
-                    waktu: new Date().toISOString(),
-                    midtrans_order_id: order_id,
-                    midtrans_response: notification
-                })
-                .select('id')
-                .single()
-
-            // ✅ Generate PDF dan upload ke Supabase
-            if (insertedLog) {
-                const baseUrl = process.env.BASE_URL || 'http://localhost:5173'
-                const invoiceUrl = `${baseUrl}/invoice/${tagihan_id}`
-                const fileName = `invoice-${tagihan_id}.pdf`
-
-                try {
-                    await generateAndUploadInvoicePdf(invoiceUrl, fileName, jenis, tagihan_id)
-                    console.log('✅ Invoice berhasil disimpan')
-                } catch (err) {
-                    console.error('❌ Gagal simpan invoice PDF:', err)
-                }
-            }
-
-            return res.status(200).send('ok')
+        if (!order_id || !order_id.startsWith('INV-')) {
+            console.warn('⚠️ Notifikasi tidak valid, order_id:', order_id)
+            return res.status(200).send('ignored')
         }
 
-        return res.status(200).send('ignored')
+        let transactionStatus = notification.transaction_status
+        const paymentType = notification.payment_type
+
+        if (transactionStatus === 'capture' && paymentType === 'credit_card') {
+            transactionStatus = 'settlement'
+        }
+
+        if (transactionStatus !== 'settlement' || notification.fraud_status === 'deny') {
+            console.warn('⚠️ Notifikasi bukan transaksi sukses, status:', transactionStatus)
+            return res.status(200).send('ignored')
+        }
+
+        const parts = order_id.split('-')
+        const jenis = parts[1]
+        const tagihan_id = parts.slice(2).join('-')
+
+        const table = jenis === 'rutin' ? 'iuran_tagihan' : 'tagihan_tambahan'
+        const statusKey = jenis === 'rutin' ? 'status' : 'status_bayar'
+
+        const { data: tagihanData, error: tagihanErr } = await supabase
+            .from(table).select('user_id').eq('id', tagihan_id).single()
+
+        if (tagihanErr || !tagihanData?.user_id) {
+            console.error('❌ Tagihan tidak ditemukan:', tagihanErr?.message)
+            return res.status(400).json({ error: 'Tagihan tidak ditemukan' })
+        }
+
+        const updatePayload = {
+            tanggal_bayar: new Date().toISOString(),
+            order_id
+        }
+
+        if (jenis === 'rutin') {
+            updatePayload.status = 'sudah_bayar'
+            updatePayload.metode_bayar = paymentType || 'unknown'
+        } else if (jenis === 'tambahan') {
+            updatePayload.status_bayar = 'sudah_bayar'
+            updatePayload.metode_bayar = paymentType || 'unknown'
+        }
+
+        const { error: updateErr } = await supabase
+            .from(table)
+            .update(updatePayload)
+            .eq('id', tagihan_id)
+
+        if (updateErr) {
+            console.error('❌ Gagal update tagihan:', updateErr.message)
+            return res.status(500).json({ error: 'Gagal update tagihan' })
+        }
+
+        const { data: insertedLog } = await supabase
+            .from('pembayaran_log')
+            .insert({
+                user_id: tagihanData.user_id,
+                tagihan_id,
+                jenis,
+                metode: paymentType || 'unknown',
+                amount: parseInt(notification.gross_amount),
+                waktu: new Date().toISOString(),
+                midtrans_order_id: order_id,
+                midtrans_response: notification
+            })
+            .select('id')
+            .single()
+
+        if (insertedLog) {
+            const baseUrl = process.env.BASE_URL || 'http://localhost:5173'
+            const invoiceUrl = `${baseUrl}/invoice/public/${jenis}/${tagihan_id}`
+            const fileName = `invoice-${tagihan_id}.pdf`
+
+            try {
+                await generateAndUploadInvoicePdf(invoiceUrl, fileName, jenis, tagihan_id)
+                console.log('✅ Invoice berhasil disimpan ke Supabase')
+            } catch (err) {
+                console.error('❌ Gagal generate/simpan invoice:', err)
+            }
+        }
+
+        return res.status(200).send('ok')
+
     } catch (err) {
         console.error('❌ Webhook error:', err)
         return res.status(500).json({ error: 'Webhook gagal' })
     }
 })
 
-// 🧪 Tes manual generate invoice PDF dan simpan ke Supabase
+
+// === TEST INVOICE MANUAL ===
 router.post('/test-generate-invoice', async (req, res) => {
     const { tagihan_id, jenis } = req.body
     const baseUrl = process.env.BASE_URL || 'http://localhost:5173'
@@ -162,6 +218,5 @@ router.post('/test-generate-invoice', async (req, res) => {
         return res.status(500).json({ error: err.message })
     }
 })
-
 
 export default router
