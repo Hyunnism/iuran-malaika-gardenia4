@@ -18,10 +18,11 @@ export default function RiwayatPembayaranTabel() {
             const { data: tambahan, error: tambahanError } = await supabase
                 .from('tagihan_tambahan')
                 .select(`
-                    id, tanggal_bayar, invoice_url, status_bayar,
-                    user:users!tagihan_tambahan_user_id_fkey(name),
-                    iuran_tambahan(nama_iuran, nominal)
-                `)
+  id, tanggal_bayar, invoice_url, status_bayar, metode_bayar,
+  user:users!tagihan_tambahan_user_id_fkey(name),
+  iuran_tambahan(nama_iuran, nominal)
+`)
+
                 .eq('status_bayar', 'sudah_bayar')
 
             if (rutinError) console.error('❌ Error rutin:', rutinError.message)
@@ -43,7 +44,7 @@ export default function RiwayatPembayaranTabel() {
                     jenis: item.iuran_tambahan?.nama_iuran || 'Iuran Tambahan',
                     nominal: item.iuran_tambahan?.nominal || 0,
                     tgl: item.tanggal_bayar,
-                    metode: '-', // opsional
+                    metode: item.metode_bayar || '-',
                     invoice: item.invoice_url
                 }))
             ]
