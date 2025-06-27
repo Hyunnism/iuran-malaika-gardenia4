@@ -62,12 +62,27 @@ export default function TagihanSaya() {
                     jenis: item.jenis
                 })
             })
-            const data = await res.json()
-            if (data?.payment_url) window.location.href = data.payment_url
+
+            const text = await res.text()
+            if (!res.ok) {
+                console.error('❌ Error HTTP:', res.status, text)
+                alert(`Gagal [${res.status}]: ${text}`)
+                return
+            }
+
+            const data = JSON.parse(text)
+            if (data?.payment_url) {
+                window.location.href = data.payment_url
+            } else {
+                console.error('❌ Tidak ada payment_url:', data)
+                alert('Gagal mendapatkan link pembayaran.')
+            }
         } catch (err) {
-            alert('Gagal membuat pembayaran. Coba lagi.')
+            console.error('❌ Fetch error:', err)
+            alert('Gagal konek ke server. Cek koneksi atau setting API_BASE_URL')
         }
     }
+
 
 
     return (

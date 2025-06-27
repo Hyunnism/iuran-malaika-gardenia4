@@ -10,7 +10,19 @@ dotenv.config()
 const app = express()
 const PORT = process.env.PORT || 5000
 
-app.use(cors())
+app.use(cors({
+    origin: [
+        'capacitor://localhost',
+        'http://localhost',
+        'https://localhost',
+        'http://localhost:5173',
+        'https://malaikagardenia.netlify.app',
+        'https://malaikaserver-production.up.railway.app'
+    ],
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type']
+}))
+
 app.use(express.json())
 
 const supabase = createClient(

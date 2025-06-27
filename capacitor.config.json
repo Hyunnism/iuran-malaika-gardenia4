@@ -1,0 +1,6 @@
+{
+  "appId": "com.malaikagardenia.app",
+  "appName": "malaika-gardenia",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}

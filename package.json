@@ -10,6 +10,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^7.4.0",
+    "@capacitor/cli": "^7.4.0",
+    "@capacitor/core": "^7.4.0",
     "@supabase/supabase-js": "^2.50.0",
     "@tailwindcss/line-clamp": "^0.4.4",
     "cors": "^2.8.5",
