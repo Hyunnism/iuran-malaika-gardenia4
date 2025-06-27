@@ -2,8 +2,10 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/SupabaseClient'
 import { useUser } from '@/context/UserContext'
+import { useNavigate } from 'react-router-dom'
 
 export default function RiwayatPembayaran() {
+    const navigate = useNavigate()
     const { user } = useUser()
     const [riwayat, setRiwayat] = useState([])
 
@@ -104,14 +106,12 @@ export default function RiwayatPembayaran() {
                                 💰 Rp {t.nominal?.toLocaleString()}
                             </p>
                             <div className="mt-3 text-center">
-                                <a
-                                    href={`/invoice/${t.id}`}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                <button
+                                    onClick={() => navigate(`/invoice/${t.id}`)}
                                     className="inline-block text-sm font-medium bg-blue-100 text-blue-700 px-3 py-1 rounded-full hover:bg-blue-200 transition"
                                 >
                                     Lihat Invoice
-                                </a>
+                                </button>
                             </div>
                         </div>
                     </div>

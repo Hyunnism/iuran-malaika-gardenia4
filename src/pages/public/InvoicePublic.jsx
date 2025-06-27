@@ -83,21 +83,58 @@ function InvoicePublic() {
     const tanggalBayar = tagihan.tanggal_bayar
 
     return (
-        <div className="max-w-xl mx-auto my-10 p-8 border shadow rounded">
-            <h1 className="text-2xl font-bold mb-4">Invoice Pembayaran</h1>
-            <p><strong>Nama:</strong> {user.name}</p>
-            <p><strong>Rumah:</strong> {user.nomor_rumah}</p>
-            <p><strong>Jenis Iuran:</strong> {iuran.nama_iuran}</p>
-            <p><strong>Nominal:</strong> Rp {iuran.nominal.toLocaleString('id-ID')}</p>
-            <p><strong>Status:</strong> {status}</p>
-            {tanggalBayar && (
-                <p><strong>Tanggal Bayar:</strong> {new Date(tanggalBayar).toLocaleString('id-ID')}</p>
-            )}
-            <p className="text-sm mt-6 text-gray-500">
-                Halaman publik ini digunakan untuk pencetakan invoice otomatis tanpa login.
+        <div className="max-w-xl mx-auto my-10 p-6 bg-white shadow-lg rounded-lg text-gray-800">
+            {/* Header */}
+            <div className="text-center mb-6 border-b pb-4">
+                <h1 className="text-2xl font-bold">🧾 INVOICE PEMBAYARAN</h1>
+                <p className="text-xs text-gray-500 mt-1">ID Tagihan: {id}</p>
+            </div>
+
+            {/* Info Warga */}
+            <div className="grid grid-cols-2 text-sm gap-y-2 mb-4">
+                <div className="font-medium">Nama Warga:</div>
+                <div>{user.name}</div>
+                <div className="font-medium">Nomor Rumah:</div>
+                <div>{user.nomor_rumah}</div>
+            </div>
+
+            {/* Rincian Iuran */}
+            <table className="text-sm text-left w-full mb-4">
+                <tbody>
+                    <tr>
+                        <td className="font-medium w-40">Jenis Iuran</td>
+                        <td>: {iuran.nama_iuran}</td>
+                    </tr>
+                    <tr>
+                        <td className="font-medium">Kategori</td>
+                        <td>: {jenis === 'rutin' ? 'Rutin Bulanan' : 'Tambahan / Event'}</td>
+                    </tr>
+                    <tr>
+                        <td className="font-medium">Nominal</td>
+                        <td>: Rp {iuran.nominal.toLocaleString('id-ID')}</td>
+                    </tr>
+                    <tr>
+                        <td className="font-medium">Status</td>
+                        <td>: {status?.replace('_', ' ')}</td>
+                    </tr>
+                    <tr>
+                        <td className="font-medium">Dibayar Pada</td>
+                        <td>: {tanggalBayar ? new Date(tanggalBayar).toLocaleDateString('id-ID') : '-'}</td>
+                    </tr>
+                    <tr>
+                        <td className="font-medium">Metode Bayar</td>
+                        <td>: {tagihan.metode_bayar ? tagihan.metode_bayar : '-'}</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            {/* Footer */}
+            <p className="text-xs text-gray-500 text-center mt-6">
+                Halaman ini adalah bukti pembayaran resmi. Terima kasih 🙏
             </p>
         </div>
     )
+
 }
 
 export default InvoicePublic
