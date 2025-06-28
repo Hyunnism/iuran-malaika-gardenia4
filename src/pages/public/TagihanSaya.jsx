@@ -24,6 +24,24 @@ export default function TagihanSaya() {
 
             const items = []
 
+            const { data: ronda } = await supabase
+                .from('iuran_ronda')
+                .select('id, tanggal_ronda, denda')
+                .eq('user_id', user.id)
+                .eq('absen', false)
+                .eq('status_bayar', false)
+                .gt('denda', 0) // pastikan hanya yang ada dendanya
+
+            if (ronda) {
+                ronda.forEach(r => items.push({
+                    id: r.id,
+                    nama: 'Denda Ronda',
+                    nominal: r.denda,
+                    tanggal: r.tanggal_ronda,
+                    jenis: 'ronda'
+                }))
+            }
+
             if (rutin) {
                 rutin.forEach(r => items.push({
                     id: r.id,
@@ -53,14 +71,27 @@ export default function TagihanSaya() {
 
     const handleBayar = async (item) => {
         try {
-            const res = await fetch(`${API_BASE_URL}/api/midtrans/create-snap`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
+            // 👇 Bedakan endpoint untuk jenis 'ronda'
+            const isRonda = item.jenis === 'ronda'
+            const endpoint = isRonda
+                ? `${API_BASE_URL}/api/midtrans/ronda-create-snap`
+                : `${API_BASE_URL}/api/midtrans/create-snap`
+
+            const body = isRonda
+                ? JSON.stringify({
+                    ronda_id: item.id,
+                    user_id: user.id
+                })
+                : JSON.stringify({
                     user_id: user.id,
                     tagihan_id: item.id,
                     jenis: item.jenis
                 })
+
+            const res = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body
             })
 
             const text = await res.text()
@@ -71,10 +102,18 @@ export default function TagihanSaya() {
             }
 
             const data = JSON.parse(text)
+
+            // 👇 Gunakan Snap untuk denda ronda
+            if (isRonda && data?.token) {
+                window.snap.pay(data.token)
+                return
+            }
+
+            // 👇 Gunakan redirect URL untuk rutin & tambahan
             if (data?.payment_url) {
                 window.location.href = data.payment_url
             } else {
-                console.error('❌ Tidak ada payment_url:', data)
+                console.error('❌ Tidak ada token atau payment_url:', data)
                 alert('Gagal mendapatkan link pembayaran.')
             }
         } catch (err) {
@@ -82,8 +121,6 @@ export default function TagihanSaya() {
             alert('Gagal konek ke server. Cek koneksi atau setting API_BASE_URL')
         }
     }
-
-
 
     return (
         <div className="space-y-5">
@@ -107,10 +144,16 @@ export default function TagihanSaya() {
                                 <span
                                     className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap self-start ${t.jenis === 'rutin'
                                         ? 'bg-blue-100 text-blue-700'
-                                        : 'bg-yellow-100 text-yellow-700'
+                                        : t.jenis === 'tambahan'
+                                            ? 'bg-yellow-100 text-yellow-700'
+                                            : 'bg-red-100 text-red-700'
                                         }`}
                                 >
-                                    {t.jenis === 'rutin' ? 'Rutin' : 'Tambahan'}
+                                    {t.jenis === 'rutin'
+                                        ? 'Rutin'
+                                        : t.jenis === 'tambahan'
+                                            ? 'Tambahan'
+                                            : 'Denda Ronda'}
                                 </span>
                             </div>
 

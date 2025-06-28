@@ -1,7 +1,10 @@
 malaika-iuran/
 │
 ├── public/
+│   ├── malaikaicon.svg                 
 │   └── index.html
+│
+├── android/
 │
 ├── server/
 │   ├── routes/                 
@@ -25,6 +28,7 @@ malaika-iuran/
 │   │   └── AdminLayout.jsx    
 │   │   └── WargaLayout.jsx    
 │   ├── lib/
+│   │   ├── apibaseUrl.js
 │   │   └── SupabaseClient.jsx          
 │   ├── pages/
 │   │   ├── auth/              
@@ -65,6 +69,13 @@ malaika-iuran/
 │   │   │   │    ├── index.ts
 │
 ├── .env
+├── .gitignore
+├── capacitor.config.json
+├── eslint.config.js
+├── index.html
+├── map.txt
+├── package-lock.json
+├── postcss.config.js
 ├── tailwind.config.js
 ├── vite.config.js
 └── package.json

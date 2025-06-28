@@ -8,6 +8,11 @@ import IuranTambahanList from '@/pages/dashboard/iuran/IuranTambahanList'
 import WargaList from '@/pages/dashboard/pengguna/WargaList'
 import WargaLayout from '@/layouts/WargaLayout'
 
+import JadwalRonda from '@/pages/dashboard/ronda/JadwalRonda'
+import AbsensiRonda from '@/pages/dashboard/ronda/AbsensiRonda'
+import PembayaranRonda from '@/pages/dashboard/ronda/PembayaranRonda'
+import StatistikRonda from '@/pages/dashboard/ronda/StatistikRonda'
+
 import Invoice from '@/pages/public/Invoice'
 import InvoicePublic from '@/pages/public/InvoicePublic'
 import TagihanSaya from '@/pages/public/TagihanSaya'
@@ -37,6 +42,11 @@ function App() {
         <Route path="iuran" element={<IuranList />} />
         <Route path="iuran/tambahan" element={<IuranTambahanList />} />
         <Route path="pengguna" element={<WargaList />} />
+
+        <Route path="ronda/jadwal" element={<JadwalRonda />} />
+        <Route path="ronda/absensi" element={<AbsensiRonda />} />
+        <Route path="ronda/pembayaran" element={<PembayaranRonda />} />
+        <Route path="ronda/statistik" element={<StatistikRonda />} />
       </Route>
 
       {/* Warga */}

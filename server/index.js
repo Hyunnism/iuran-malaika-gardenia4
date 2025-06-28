@@ -1,8 +1,10 @@
 import express from 'express'
 import cors from 'cors'
+import dayjs from 'dayjs'
 import dotenv from 'dotenv'
 import { createClient } from '@supabase/supabase-js'
 import { logActivity } from './utils/logActivity.js'
+import { renderRondaInvoicePdf } from './utils/renderRondaInvoicePdf.js'
 
 
 dotenv.config()
@@ -386,7 +388,305 @@ app.delete('/api/iuran-tambahan/:id', async (req, res) => {
     }
 })
 
+app.post('/api/ronda/generate-jadwal', async (req, res) => {
+    const { tanggal_mulai, admin_id } = req.body;
 
+    if (!tanggal_mulai || !admin_id) {
+        return res.status(400).json({ error: 'tanggal_mulai dan admin_id wajib diisi' });
+    }
+
+    try {
+        const tanggalStart = dayjs(tanggal_mulai).startOf('week')
+        const tanggalEnd = tanggalStart.add(6, 'day')
+        const tanggalAwalStr = tanggalStart.toISOString().split('T')[0];
+        const tanggalAkhirStr = tanggalEnd.toISOString().split('T')[0];
+
+        // ✅ Cek apakah sudah ada jadwal di minggu ini
+        const { data: existing, error: checkErr } = await supabase
+            .from('iuran_ronda')
+            .select('id')
+            .gte('tanggal_ronda', tanggalAwalStr)
+            .lte('tanggal_ronda', tanggalAkhirStr);
+
+        if (checkErr) throw checkErr;
+
+        if (existing.length > 0) {
+            return res.status(400).json({ error: 'Jadwal ronda untuk minggu ini sudah ada.' });
+        }
+
+        // ✅ Ambil data warga
+        const { data: users, error: userErr } = await supabase
+            .from('users')
+            .select('id')
+            .eq('role', 'warga')
+            .order('created_at', { ascending: true });
+
+        if (userErr) throw userErr;
+
+        if (users.length < 20) {
+            return res.status(400).json({ error: 'Minimal 20 warga diperlukan untuk pembagian mingguan.' });
+        }
+
+        // ✅ Bagi jadwal
+        const jadwalPerHari = [3, 3, 3, 3, 3, 3, 2]; // 6 hari × 3 + 1 hari × 2
+        const insertData = [];
+        let userIndex = 0;
+
+        for (let i = 0; i < 7; i++) {
+            const tanggalFormatted = tanggalStart.add(i, 'day').format('YYYY-MM-DD')
+
+            const jumlahWargaHariIni = jadwalPerHari[i];
+            for (let j = 0; j < jumlahWargaHariIni; j++) {
+                const user = users[userIndex];
+                if (!user) break;
+
+                insertData.push({
+                    user_id: user.id,
+                    tanggal_ronda: tanggalFormatted,
+                    absen: false,
+                    denda: 0,
+                    status_bayar: false
+                });
+
+                userIndex++;
+            }
+        }
+
+        // ✅ Insert ke DB
+        const { error: insertErr } = await supabase
+            .from('iuran_ronda')
+            .insert(insertData);
+
+        if (insertErr) throw insertErr;
+
+        // ✅ Audit log
+        await logActivity(supabase, {
+            user_id: admin_id,
+            action: 'create',
+            table_name: 'iuran_ronda',
+            row_id: null,
+            keterangan: `Generate jadwal ronda mingguan mulai ${tanggalAwalStr}`
+        });
+
+        // ✅ Ambil jadwal yang barusan dibuat (dengan join nama warga)
+        const { data: jadwal, error: jadwalErr } = await supabase
+            .from('iuran_ronda')
+            .select(`
+                tanggal_ronda,
+                user_name:users(name)
+            `)
+            .gte('tanggal_ronda', tanggalAwalStr)
+            .lte('tanggal_ronda', tanggalAkhirStr)
+            .order('tanggal_ronda', { ascending: true });
+
+        if (jadwalErr) throw jadwalErr;
+
+        // ✅ Kirim data ke frontend
+        return res.status(200).json({
+            message: '✅ Jadwal ronda mingguan berhasil dibuat.',
+            tanggal: `${tanggalAwalStr} s.d. ${tanggalAkhirStr}`,
+            total_dibuat: insertData.length,
+            jadwal
+        });
+    } catch (err) {
+        console.error('❌ Gagal generate jadwal ronda:', err);
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+app.get('/api/ronda/jadwal-mingguan', async (req, res) => {
+    try {
+        const today = new Date();
+        const start = new Date(today);
+        const dayOfWeek = today.getDay(); // 0 = Minggu, 6 = Sabtu
+
+        // Awal minggu = hari Minggu paling dekat ke belakang
+        start.setDate(today.getDate() - dayOfWeek);
+
+        const end = new Date(start);
+        end.setDate(start.getDate() + 6); // Sabtu
+
+        const tanggalAwalStr = start.toISOString().split('T')[0];
+        const tanggalAkhirStr = end.toISOString().split('T')[0];
+
+        const { data: jadwal, error } = await supabase
+            .from('iuran_ronda')
+            .select(`
+  tanggal_ronda,
+  user_name:users(name)
+`)
+            .gte('tanggal_ronda', tanggalAwalStr)
+            .lte('tanggal_ronda', tanggalAkhirStr)
+            .order('tanggal_ronda', { ascending: true });
+
+
+        if (error) throw error;
+
+        return res.status(200).json({ jadwal });
+    } catch (err) {
+        console.error('Gagal ambil jadwal ronda mingguan:', err);
+        return res.status(500).json({ error: err.message });
+    }
+});
+
+
+app.get('/api/ronda/absensi', async (req, res) => {
+    const { tanggal } = req.query
+    if (!tanggal) return res.status(400).json({ error: 'Tanggal wajib diisi' })
+
+    try {
+        const { data, error } = await supabase
+            .from('iuran_ronda')
+            .select('id, user_id, absen, denda, users(name)')
+            .eq('tanggal_ronda', tanggal)
+
+        if (error) throw error
+
+        const result = data.map(item => ({
+            id: item.id,
+            user_id: item.user_id,
+            absen: item.absen,
+            denda: item.denda,
+            user_name: item.users.name
+        }))
+
+        res.json(result)
+    } catch (err) {
+        console.error('❌ Gagal ambil absensi ronda:', err)
+        res.status(500).json({ error: err.message })
+    }
+})
+
+app.put('/api/ronda/update-absensi', async (req, res) => {
+    const { tanggal_ronda, updated_by, data } = req.body
+
+    if (!data || !Array.isArray(data)) {
+        return res.status(400).json({ error: 'Data absensi tidak valid' })
+    }
+
+    try {
+        const updates = data.map(row => ({
+            id: row.id,
+            absen: row.absen,
+            denda: row.denda
+        }))
+
+        for (const row of updates) {
+            await supabase
+                .from('iuran_ronda')
+                .update({ absen: row.absen, denda: row.denda })
+                .eq('id', row.id)
+        }
+
+        await logActivity(supabase, {
+            user_id: updated_by,
+            action: 'update',
+            table_name: 'iuran_ronda',
+            row_id: null,
+            keterangan: `Update absensi ronda tanggal ${tanggal_ronda}`
+        })
+
+        res.json({ success: true })
+    } catch (err) {
+        console.error('❌ Gagal update absensi ronda:', err)
+        res.status(500).json({ error: err.message })
+    }
+})
+
+app.post('/api/ronda/generate-invoice', async (req, res) => {
+    const { admin_id } = req.body
+
+    try {
+        const { data, error } = await supabase
+            .from('iuran_ronda')
+            .select('id')
+            .eq('absen', false)
+            .eq('status_bayar', false)
+            .gt('denda', 0)
+
+        if (error) throw error
+
+        for (const item of data) {
+            const invoiceUrl = await renderRondaInvoicePdf(item.id)
+            await supabase
+                .from('iuran_ronda')
+                .update({ invoice_url: invoiceUrl })
+                .eq('id', item.id)
+        }
+
+        await logActivity(supabase, {
+            user_id: admin_id,
+            action: 'generate',
+            table_name: 'iuran_ronda',
+            row_id: null,
+            keterangan: 'Generate invoice denda ronda otomatis'
+        })
+
+        res.json({ success: true, count: data.length })
+    } catch (err) {
+        console.error('❌ Gagal generate invoice ronda:', err)
+        res.status(500).json({ error: err.message })
+    }
+})
+
+app.get('/api/ronda/bolos-belum-bayar', async (req, res) => {
+    try {
+        const { data, error } = await supabase
+            .from('iuran_ronda')
+            .select('id, tanggal_ronda, denda, invoice_url, users(name)')
+            .eq('absen', false)
+            .eq('status_bayar', false)
+            .gt('denda', 0)
+
+        if (error) throw error
+
+        res.json(data)
+    } catch (err) {
+        console.error('❌ Gagal ambil data denda belum bayar:', err)
+        res.status(500).json({ error: err.message })
+    }
+})
+
+app.put('/api/ronda/tandai-lunas', async (req, res) => {
+    const { id, admin_id } = req.body
+
+    if (!id || !admin_id) {
+        return res.status(400).json({ error: 'ID dan admin_id wajib diisi' })
+    }
+
+    try {
+        await supabase
+            .from('iuran_ronda')
+            .update({ status_bayar: true })
+            .eq('id', id)
+
+        await logActivity(supabase, {
+            user_id: admin_id,
+            action: 'update',
+            table_name: 'iuran_ronda',
+            row_id: id,
+            keterangan: 'Tandai pembayaran denda ronda sebagai lunas'
+        })
+
+        res.json({ success: true })
+    } catch (err) {
+        console.error('❌ Gagal tandai lunas:', err)
+        res.status(500).json({ error: err.message })
+    }
+})
+
+app.get('/api/ronda/statistik', async (req, res) => {
+    try {
+        const { data, error } = await supabase.rpc('statistik_ronda_per_warga')
+
+        if (error) throw error
+
+        res.json(data)
+    } catch (err) {
+        console.error('❌ Gagal ambil statistik ronda:', err)
+        res.status(500).json({ error: err.message })
+    }
+})
 
 // ✅ API log aktivitas manual (untuk frontend)
 app.post('/api/log-activity', async (req, res) => {

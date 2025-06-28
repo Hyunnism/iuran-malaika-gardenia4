@@ -11,7 +11,7 @@ const snap = new midtransClient.Snap({
     serverKey: process.env.MIDTRANS_SERVER_KEY
 })
 
-// === CREATE SNAP ===
+// === CREATE SNAP UNTUK IURAN RUTIN / TAMBAHAN ===
 router.post('/create-snap', async (req, res) => {
     const { user_id, tagihan_id, jenis } = req.body
     const supabase = req.supabase
@@ -22,68 +22,31 @@ router.post('/create-snap', async (req, res) => {
         let userName = 'Warga'
 
         if (jenis === 'rutin') {
-            const { data: tagihan, error: tagihanErr } = await supabase
-                .from('iuran_tagihan').select('*').eq('id', tagihan_id).single()
-
-            if (tagihanErr || !tagihan) {
-                return res.status(404).json({ error: 'Tagihan rutin tidak ditemukan' })
-            }
-
-            const { data: iuran } = await supabase
-                .from('iuran_rutin').select('nama_iuran, nominal')
-                .eq('id', tagihan.iuran_rutin_id).single()
-
-            const { data: user } = await supabase
-                .from('users').select('name').eq('id', tagihan.user_id).single()
+            const { data: tagihan } = await supabase.from('iuran_tagihan').select('*').eq('id', tagihan_id).single()
+            const { data: iuran } = await supabase.from('iuran_rutin').select('nama_iuran, nominal').eq('id', tagihan.iuran_rutin_id).single()
+            const { data: user } = await supabase.from('users').select('name').eq('id', tagihan.user_id).single()
 
             nominal = iuran?.nominal || 0
             namaIuran = iuran?.nama_iuran || 'Iuran Rutin'
             userName = user?.name || 'Warga'
-        }
-
-        else if (jenis === 'tambahan') {
-            const { data: tagihan, error: tagihanErr } = await supabase
-                .from('tagihan_tambahan').select('*').eq('id', tagihan_id).single()
-
-            if (tagihanErr || !tagihan) {
-                return res.status(404).json({ error: 'Tagihan tambahan tidak ditemukan' })
-            }
-
-            const { data: iuran } = await supabase
-                .from('iuran_tambahan').select('nama_iuran, nominal')
-                .eq('id', tagihan.iuran_tambahan_id).single()
-
-            const { data: user } = await supabase
-                .from('users').select('name').eq('id', tagihan.user_id).single()
+        } else if (jenis === 'tambahan') {
+            const { data: tagihan } = await supabase.from('tagihan_tambahan').select('*').eq('id', tagihan_id).single()
+            const { data: iuran } = await supabase.from('iuran_tambahan').select('nama_iuran, nominal').eq('id', tagihan.iuran_tambahan_id).single()
+            const { data: user } = await supabase.from('users').select('name').eq('id', tagihan.user_id).single()
 
             nominal = iuran?.nominal || 0
             namaIuran = iuran?.nama_iuran || 'Iuran Tambahan'
             userName = user?.name || 'Warga'
-        }
-
-        else {
+        } else {
             return res.status(400).json({ error: 'Jenis tagihan tidak valid' })
         }
 
         const order_id = `INV-${jenis}-${tagihan_id}`
 
         const parameter = {
-            transaction_details: {
-                order_id,
-                gross_amount: nominal
-            },
-            customer_details: {
-                first_name: userName,
-                email: `${user_id}@iuran.local`
-            },
-            item_details: [
-                {
-                    id: tagihan_id,
-                    price: nominal,
-                    quantity: 1,
-                    name: namaIuran
-                }
-            ]
+            transaction_details: { order_id, gross_amount: nominal },
+            customer_details: { first_name: userName, email: `${user_id}@iuran.local` },
+            item_details: [{ id: tagihan_id, price: nominal, quantity: 1, name: namaIuran }]
         }
 
         const transaction = await snap.createTransaction(parameter)
@@ -95,38 +58,91 @@ router.post('/create-snap', async (req, res) => {
     }
 })
 
-// === WEBHOOK ===
+// === CREATE SNAP UNTUK DENDA RONDA ===
+router.post('/ronda-create-snap', async (req, res) => {
+    const { ronda_id, user_id } = req.body
+    const supabase = req.supabase
+
+    const { data, error } = await supabase
+        .from('iuran_ronda')
+        .select('*, users(name)')
+        .eq('id', ronda_id)
+        .eq('user_id', user_id)
+        .single()
+
+    if (error || !data) return res.status(404).json({ error: 'Data tidak ditemukan' })
+
+    const orderId = `ROND-${ronda_id}-${Date.now()}`
+
+    const parameter = {
+        transaction_details: {
+            order_id: orderId,
+            gross_amount: data.denda
+        },
+        customer_details: {
+            first_name: data.users.name
+        }
+    }
+
+    try {
+        const { token } = await snap.createTransaction(parameter)
+
+        await supabase.from('iuran_ronda').update({ order_id: orderId }).eq('id', ronda_id)
+
+        res.json({ token })
+    } catch (err) {
+        console.error('❌ Midtrans error:', err)
+        res.status(500).json({ error: err.message })
+    }
+})
+
+// === WEBHOOK UNTUK SEMUA ===
 router.post('/webhook', async (req, res) => {
     const notification = req.body
     const supabase = req.supabase
+    const order_id = notification.order_id
 
-    try {
-        const { order_id } = notification
+    let transactionStatus = notification.transaction_status
+    const paymentType = notification.payment_type
 
-        // 📦 DEBUG: log isi notifikasi
-        console.log('📦 Midtrans Webhook Payload:', JSON.stringify(notification, null, 2))
-        console.log('🧾 order_id:', order_id)
-        console.log('💳 payment_type:', notification.payment_type)
-        console.log('📌 transaction_status:', notification.transaction_status)
-        console.log('🔐 fraud_status:', notification.fraud_status)
+    if (transactionStatus === 'capture' && paymentType === 'credit_card') {
+        transactionStatus = 'settlement'
+    }
 
-        if (!order_id || !order_id.startsWith('INV-')) {
-            console.warn('⚠️ Notifikasi tidak valid, order_id:', order_id)
-            return res.status(200).send('ignored')
+    if (transactionStatus !== 'settlement' || notification.fraud_status === 'deny') {
+        return res.status(200).send('ignored')
+    }
+
+    // === HANDLE RONDA ===
+    if (order_id.startsWith('ROND-')) {
+        const ronda_id = order_id.split('-')[1]
+
+        const { data: rondaData } = await supabase
+            .from('iuran_ronda').select('user_id').eq('id', ronda_id).single()
+
+        await supabase
+            .from('iuran_ronda')
+            .update({ status_bayar: true })
+            .eq('id', ronda_id)
+
+        if (rondaData?.user_id) {
+            await supabase.from('pembayaran_log').insert({
+                user_id: rondaData.user_id,
+                tagihan_id: ronda_id,
+                jenis: 'ronda',
+                metode: paymentType,
+                amount: parseInt(notification.gross_amount),
+                waktu: new Date().toISOString(),
+                midtrans_order_id: order_id,
+                midtrans_response: notification
+            })
         }
 
-        let transactionStatus = notification.transaction_status
-        const paymentType = notification.payment_type
+        return res.status(200).send('ok')
+    }
 
-        if (transactionStatus === 'capture' && paymentType === 'credit_card') {
-            transactionStatus = 'settlement'
-        }
-
-        if (transactionStatus !== 'settlement' || notification.fraud_status === 'deny') {
-            console.warn('⚠️ Notifikasi bukan transaksi sukses, status:', transactionStatus)
-            return res.status(200).send('ignored')
-        }
-
+    // === HANDLE RUTIN / TAMBAHAN ===
+    if (order_id.startsWith('INV-')) {
         const parts = order_id.split('-')
         const jenis = parts[1]
         const tagihan_id = parts.slice(2).join('-')
@@ -138,32 +154,20 @@ router.post('/webhook', async (req, res) => {
             .from(table).select('user_id').eq('id', tagihan_id).single()
 
         if (tagihanErr || !tagihanData?.user_id) {
-            console.error('❌ Tagihan tidak ditemukan:', tagihanErr?.message)
             return res.status(400).json({ error: 'Tagihan tidak ditemukan' })
         }
 
         const updatePayload = {
             tanggal_bayar: new Date().toISOString(),
-            order_id
+            order_id,
+            [statusKey]: 'sudah_bayar',
+            metode_bayar: paymentType || 'unknown'
         }
 
-        if (jenis === 'rutin') {
-            updatePayload.status = 'sudah_bayar'
-            updatePayload.metode_bayar = paymentType || 'unknown'
-        } else if (jenis === 'tambahan') {
-            updatePayload.status_bayar = 'sudah_bayar'
-            updatePayload.metode_bayar = paymentType || 'unknown'
-        }
-
-        const { error: updateErr } = await supabase
+        await supabase
             .from(table)
             .update(updatePayload)
             .eq('id', tagihan_id)
-
-        if (updateErr) {
-            console.error('❌ Gagal update tagihan:', updateErr.message)
-            return res.status(500).json({ error: 'Gagal update tagihan' })
-        }
 
         const { data: insertedLog } = await supabase
             .from('pembayaran_log')
@@ -194,13 +198,10 @@ router.post('/webhook', async (req, res) => {
         }
 
         return res.status(200).send('ok')
-
-    } catch (err) {
-        console.error('❌ Webhook error:', err)
-        return res.status(500).json({ error: 'Webhook gagal' })
     }
-})
 
+    return res.status(200).send('ignored')
+})
 
 // === TEST INVOICE MANUAL ===
 router.post('/test-generate-invoice', async (req, res) => {

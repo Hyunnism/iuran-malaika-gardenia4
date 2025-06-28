@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Outlet, useLocation, useNavigate, NavLink } from 'react-router-dom'
 import { supabase } from '@/lib/supabaseClient'
-import { Home, Users, CreditCard, Menu, X } from 'lucide-react'
+import { Home, Users, CreditCard, Menu, X, CalendarCheck } from 'lucide-react'
 
 export default function AdminLayout() {
     const navigate = useNavigate()
@@ -13,7 +13,11 @@ export default function AdminLayout() {
         { to: '/dashboard', label: 'Dashboard', icon: Home },
         { to: '/dashboard/iuran', label: 'Iuran', icon: CreditCard },
         { to: '/dashboard/iuran/tambahan', label: 'Iuran Tambahan', icon: CreditCard },
-        { to: '/dashboard/pengguna', label: 'Warga', icon: Users }
+        { to: '/dashboard/ronda/jadwal', label: 'Ronda: Jadwal', icon: CalendarCheck },
+        { to: '/dashboard/ronda/absensi', label: 'Ronda: Absensi', icon: CalendarCheck },
+        { to: '/dashboard/ronda/pembayaran', label: 'Ronda: Pembayaran', icon: CalendarCheck },
+        { to: '/dashboard/ronda/statistik', label: 'Ronda: Statistik', icon: CalendarCheck },
+        { to: '/dashboard/pengguna', label: 'Warga', icon: Users },
     ]
 
     const handleLogout = async () => {
